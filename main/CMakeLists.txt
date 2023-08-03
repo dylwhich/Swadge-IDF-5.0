@@ -19,6 +19,7 @@ idf_component_register(SRCS "swadge2024.c"
                             "modes/demo/demoMode.c"
                             "modes/mainMenu/mainMenu.c"
                             "modes/pong/pong.c"
+                            "modes/tiltmaze/tiltmaze.c"
                             "utils/color_utils.c"
                             "utils/geometry.c"
                             "utils/linked_list.c"
@@ -50,7 +51,8 @@ idf_component_register(SRCS "swadge2024.c"
                                 "./modes/colorchord"
                                 "./modes/pong"
                                 "./modes/mainMenu"
-                                "./modes/demo")
+                                "./modes/demo"
+                                "./modes/tiltmaze")
 
 function(spiffs_file_preprocessor)
     add_custom_target(spiffs_preprocessor ALL

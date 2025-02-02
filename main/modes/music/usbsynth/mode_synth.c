@@ -25,6 +25,7 @@
 #include "midiUsb.h"
 #include "hashMap.h"
 #include "midiData.h"
+#include "karaokeHelper.h"
 
 //==============================================================================
 // Defines
@@ -96,46 +97,6 @@ typedef enum
 //==============================================================================
 // Structs
 //==============================================================================
-
-typedef struct
-{
-    union
-    {
-        struct
-        {
-            const char* text;
-            uint32_t length;
-            uint32_t tempo;
-        };
-    };
-
-    metaEventType_t type;
-    union
-    {
-        uint64_t expiration;
-        uint64_t timestamp;
-    };
-} midiTextInfo_t;
-
-typedef struct
-{
-    /// @brief True if the MIDI file's text is in .KAR format
-    bool karFormat;
-
-    /// @brief Preloaded list of lyrics, in order
-    list_t lyrics;
-
-    /// @brief The file's tempo (TODO it can change)
-    uint32_t tempo;
-
-    /// @brief Number of MIDI ticks in a single note (lyric)
-    uint32_t noteLength;
-
-    /// @brief The length, in MIDI ticks, of one measure
-    uint32_t measureLength;
-
-    midiTimeSignature_t timeSignature;
-} karaokeInfo_t;
 
 typedef struct
 {

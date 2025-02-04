@@ -21,6 +21,7 @@ typedef struct
     metaEventType_t type;
     uint64_t timestamp;
     uint64_t expiration;
+    uint16_t track;
 } midiTextInfo_t;
 
 typedef struct

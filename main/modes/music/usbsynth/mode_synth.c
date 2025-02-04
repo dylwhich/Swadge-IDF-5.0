@@ -2697,6 +2697,13 @@ static void synthSetFile(cnfsFileIdx_t fIdx)
                 }
             }
         }
+        else
+        {
+            // We failed to open the file
+            sd->fileMode    = false;
+            const char* msg = "Failed to open MIDI file!";
+            midiTextCallback(TEXT, msg, strlen(msg));
+        }
     }
     else
     {
@@ -2711,7 +2718,9 @@ static void synthSetFile(cnfsFileIdx_t fIdx)
         midiPlayerReset(&sd->midiPlayer);
         synthSetupPlayer();
         midiSetFile(&sd->midiPlayer, &sd->midiFile);
-        preloadLyrics(&sd->karaoke, &sd->midiFile);
+        analyzeKaraokeFile(&sd->karaoke, &sd->midiFile);
+        // I guess this is old?
+        //preloadLyrics(&sd->karaoke, &sd->midiFile);
 
         // And tell it to play immediately
         midiPause(&sd->midiPlayer, false);
@@ -3196,20 +3205,24 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
         midiTextInfo_t* nextInfo = curNode->next ? ((midiTextInfo_t*)curNode->next->val) : NULL;
         int curLyricBar          = curInfo->timestamp / ticksPerBar;
         // lyricLength used as the timer for text progress
-        int lyricLength = noteLength;
+        int lyricLength = curInfo->expiration - curInfo->timestamp;
 
-        if (curInfo->timestamp < oldCutoff)
+        if (curInfo->expiration < oldCutoff)
         {
             // Lyric is older than 2 bars
             nearLyric = curInfo->timestamp;
             // skip without drawing
         }
-        else if (curInfo->timestamp <= noteStartTime - noteLength)
+        /*else if (curInfo->expiration <= noteStartTime)
         {
             // Lyric is older than 1 note
 
             // Add a newline between measures, for files without KAR-style formatting
-            if (!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+            if ((
+                (!karInfo->karFormat && lastLyricBar != curLyricBar)
+                || (x + textWidth(&sd->betterFont, remainingWord) >= TFT_WIDTH - startX)
+                )
+                && msgLen < sizeof(textMessages) - 1)
             {
                 textMessages[msgLen++] = '\n';
                 textMessages[msgLen]   = '\0';
@@ -3221,18 +3234,19 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
 
             // Lyrics are on screen currently, so no need to draw big progress bar
             drawBar = false;
-        }
-        else if (curInfo->timestamp < now)
+        }*/
+        else if (curInfo->timestamp < now || curInfo->expiration < now)
         {
             // Lyrics are on screen currently, so no need to draw big progress bar
             drawBar = false;
 
-            if (nextInfo && nextInfo->timestamp <= now)
+            /*if (nextInfo && nextInfo->expiration <= now)
             {
                 // NEXT lyric is also in the past
 
                 // Add a newline between measures, for files without KAR-style formatting
-                if (!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+                if ((!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+                    || (x + textWidth(&sd->betterFont, remainingWord) >= TFT_WIDTH - startX))
                 {
                     textMessages[msgLen++] = '\n';
                     textMessages[msgLen]   = '\0';
@@ -3242,23 +3256,24 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
                 msgLen += writeMidiText(textMessages + msgLen, sizeof(textMessages) - msgLen - 1, curInfo,
                                         karInfo->karFormat);
             }
-            else
+            else*/
             {
                 // No next lyric or lyric is not in the past
 
-                if (nextInfo && (nextInfo->timestamp - curInfo->timestamp) < noteLength)
+                /*if (nextInfo && (nextInfo->timestamp - curInfo->timestamp) < noteLength)
                 {
                     // NEXT lyric is less than 1 beat after this one (but still in the future)
                     // Set the timer to the difference
                     lyricLength = nextInfo->timestamp - curInfo->timestamp;
-                }
+                }*/
 
                 // Print any old pending messages
                 // Also empties out the buffer so we can use it
                 FLUSH();
 
                 // Add a newline between measures, for files without KAR-style formatting
-                if (!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+                if ((!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+                    /*|| (x + textWidth(&sd->betterFont, remainingWord) >= TFT_WIDTH - startX)*/)
                 {
                     textMessages[msgLen++] = '\n';
                     textMessages[msgLen]   = '\0';
@@ -3283,20 +3298,54 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
                     cur++;
                 }
 
+                // Get the next word, regardless of which lyric it's in
+                char remainingWord[128] = {0};
+                char* tmp = remainingWord;
+                node_t* tmpNode = curNode;
+                while (tmpNode)
+                {
+                    bool wordBroken = false;
+                    midiTextInfo_t* tmpInfo = tmpNode->val;
+
+                    if (tmpInfo)
+                    {
+                        // append the lyric into the buffer
+                        writeMidiText(tmp, sizeof(remainingWord) - strlen(remainingWord), tmpInfo,
+                                                karInfo->karFormat);
+                        while (*tmp != '\0')
+                        {
+                            // Look for a space or newline or something
+                            if (*tmp == ' ' || *tmp == '\n')
+                            {
+                                // break is found, we are done. Terminate the string
+                                *tmp = '\0';
+                                wordBroken = true;
+                                break;
+                            }
+
+                            tmp++;
+                        }
+                    }
+
+                    if (wordBroken)
+                    {
+                        break;
+                    }
+                    tmpNode = tmpNode->next;
+                }
+                /// end remainingWord calculation
+
                 // Figure out the progress bar width
                 int w        = textWidth(&sd->betterFont, cur);
+                int wordW    = textWidth(&sd->betterFont, remainingWord);
+                printf("cur is '%s' - remainingWord is '%s'\n", cur, remainingWord);
                 int progress = w * (now - curInfo->timestamp) / lyricLength;
 
                 // If the lyric won't fit on screen, handle wrapping here
-                if (x + w >= TFT_WIDTH - startX)
+                if (x + wordW + 1 >= TFT_WIDTH - startX)
                 {
                     x = startX;
                     y += sd->betterFont.height + 1;
-                }
-
-                while (x == startX && *cur == ' ')
-                {
-                    cur++;
                 }
 
                 if (y >= TFT_HEIGHT - startY)
@@ -3309,9 +3358,13 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
 
                 // Draw the yellow portion of the text up to the progress point
                 drawTextBounds(&sd->betterFont, c550, cur, x, y, 0, 0, x + progress, TFT_HEIGHT);
+                drawTextBounds(&sd->betterOutline, c505, cur, x, y, 0, 0, x + progress, TFT_HEIGHT);
+
                 // Draw the white portion of the text after the progress point
                 drawTextBounds(&sd->betterFont, c555, cur, x, y, x + progress, 0, TFT_WIDTH, TFT_HEIGHT);
-                x = drawText(&sd->betterOutline, c505, cur, x, y);
+                x += w + 1;
+
+                // if ()
 
                 // Reset the buffer since we've printed the text already
                 msgLen          = 0;
@@ -3323,6 +3376,43 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
         else if (curInfo->timestamp < newCutoff)
         {
             drawBar = false;
+
+            // Get the next word, regardless of which lyric it's in
+            char remainingWord[128] = {0};
+            char* tmp = remainingWord;
+            node_t* tmpNode = curNode;
+            while (tmpNode)
+            {
+                bool wordBroken = false;
+                midiTextInfo_t* tmpInfo = tmpNode->val;
+
+                if (tmpInfo)
+                {
+                    // append the lyric into the buffer
+                    writeMidiText(tmp, sizeof(remainingWord) - strlen(remainingWord), tmpInfo,
+                                            karInfo->karFormat);
+                    while (*tmp != '\0')
+                    {
+                        // Look for a space or newline or something
+                        if (*tmp == ' ' || *tmp == '\n')
+                        {
+                            // break is found, we are done. Terminate the string
+                            *tmp = '\0';
+                            wordBroken = true;
+                            break;
+                        }
+
+                        tmp++;
+                    }
+                }
+
+                if (wordBroken)
+                {
+                    break;
+                }
+                tmpNode = tmpNode->next;
+            }
+            /// end remainingWord calculation
 
             if (!curNoteReached)
             {
@@ -3337,7 +3427,11 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
             // Note is less than (3 bars - 1 tick) in the future
 
             // Add a newline between measures, for files without KAR-style formatting
-            if (!karInfo->karFormat && lastLyricBar != curLyricBar && msgLen < sizeof(textMessages) - 1)
+            if ((
+                 (!karInfo->karFormat && lastLyricBar != curLyricBar)
+                 //|| (x + textWidth(&sd->betterFont, remainingWord) >= TFT_WIDTH - startX)
+                )
+                && msgLen < sizeof(textMessages) - 1)
             {
                 textMessages[msgLen++] = '\n';
                 textMessages[msgLen]   = '\0';

@@ -1182,7 +1182,7 @@ static void handleSysexEvent(midiPlayer_t* player, const midiSysexEvent_t* sysex
             bool realTime = (sysex->manufacturerId == MMFR_UNIVERSAL_REAL_TIME);
 
             // Universal SysEx messages have 127 "channel" values, with 0x7F meaning "Disregard Channel"
-            // uint8_t sysexChannel = *dataPtr++;
+            uint8_t sysexChannel = *dataPtr++;
 
             if (dataPtr >= end)
             {

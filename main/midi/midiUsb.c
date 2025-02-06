@@ -99,23 +99,97 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
         case 0xC: // Program Select
         case 0xD: // Channel Pressure
         {
+            sysexBuflen = 0;
+
             event->type         = MIDI_EVENT;
             event->midi.status  = cmd;
             event->midi.data[0] = packet[2];
             return true;
         }
 
-        case 0xF: // System
+        // SysEx starts or continue
+        case 0x4:
         {
-            event->type         = SYSEX_EVENT;
-            event->sysex.data   = NULL;
-            event->sysex.length = 0;
-            event->sysex.prefix = 0;
+            if (packet[1] == 0xF0)
+            {
+                sysexBuflen = 0;
+            }
+
+            if (sysexBuflen + 3 <= sizeof(sysexBuffer))
+            {
+                memcpy(sysexBuffer + sysexBuflen, packet + 1, 3);
+                sysexBuflen += 3;
+                writeSysexBuffer();
+            }
+            return false;
+        }
+
+        // SysEx FINISH
+        // SysEx ends with 1 data, or 1 byte system common message
+        case 0x5:
+        case 0x6:
+        case 0x7:
+        {
+            if (packet[1] == 0xF0)
+            {
+                sysexBuflen = 0;
+            }
+
+            int len = header - 0x04;
+
+            if (sysexBuflen + len <= sizeof(sysexBuffer))
+            {
+                memcpy(sysexBuffer + sysexBuflen, packet + 1, len);
+                sysexBuflen += len;
+                writeSysexBuffer();
+
+                event->type         = SYSEX_EVENT;
+                event->sysex.data   = sysexBuffer + 1;
+                event->sysex.length = sysexBuflen - 2;
+                event->sysex.prefix = 0;
+
+                if (sysexBuflen > 1)
+                {
+                    uint16_t manufacturer = sysexBuffer[1];
+                    if (!manufacturer)
+                    {
+                        if (sysexBuflen > 3)
+                        {
+                            // A manufacturer ID of 0 means the ID is actually in the next 2 bytes
+                            manufacturer = sysexBuffer[2];
+                            manufacturer <<= 7;
+                            manufacturer |= sysexBuffer[3];
+                            //event->sysex.data = &sysexBuffer[3];
+                            //event->sysex.length = sysexBuflen - 3;
+                        }
+                    }
+                    else
+                    {
+                        // Technically 0x00 0x00 0x41 is considered a different manufacturer from the single-byte value 0x41
+                        // So in that case just put a 1 in the 15th bit that's otherwise unused
+                        manufacturer |= (1 << 15);
+                        //event->sysex.data = &sysexBuffer[1];
+                        //event->sysex.length = sysexBuflen - 1;
+                    }
+
+                    event->sysex.manufacturerId = manufacturer;
+                }
+                else
+                {
+                    event->sysex.manufacturerId = 0x00;
+                }
+            }
+            else
+            {
+                ESP_LOGE("MIDI-USB", "SysEx buffer full! Cannot handle remaining sysex data");
+            }
             return true;
         }
 
         default:
         {
+            sysexBuflen = 0;
+
             // Idk?
             return false;
         }

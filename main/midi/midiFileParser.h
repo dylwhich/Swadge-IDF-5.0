@@ -351,3 +351,11 @@ bool midiNextEvent(midiFileReader_t* reader, midiEvent_t* event);
  * @return int The number of bytes written
  */
 int midiWriteEvent(uint8_t* out, int max, const midiEvent_t* event);
+
+/**
+ * @brief Returns the number of bytes needed to write the entire MIDI event
+ * 
+ * @param event The MIDI event to measure
+ * @return int The number of bytes that are needed to write the entire MIDI event
+ */
+int midiEventSize(const midiEvent_t* event);

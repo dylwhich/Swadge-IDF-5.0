@@ -18,3 +18,12 @@ bool usbMidiCallback(midiEvent_t* event);
  * @return false if the driver installation failed
  */
 bool installMidiUsb(void);
+
+/**
+ * @brief Send a MIDI event via the USB MIDI Out port
+ *
+ * @param event
+ * @return true
+ * @return false
+ */
+bool usbMidiSend(midiEvent_t* event);

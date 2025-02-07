@@ -59,9 +59,54 @@ static const uint8_t midiConfigDescriptor[]
     = {TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, MIDI_CONFIG_TOTAL_LEN, 0, 100),
        TUD_MIDI_DESCRIPTOR(ITF_NUM_MIDI, 4, EPNUM_MIDI, (0x80 | EPNUM_MIDI), 64)};
 
+static uint8_t sysexBuffer[1024];
+static size_t sysexBuflen = 0;
+
 //==============================================================================
 // Functions
 //==============================================================================
+
+static void setLedsForPacket(const uint8_t* packet, int len)
+{
+    const led_t ledVals[16] = {
+        {.r = 0x7F, .g = 0, .b = 0}, // Light Red
+        {.r = 0xFF, .g = 0, .b = 0}, // Red
+        {.r = 0x7F, .g = 0x3F, .b = 0}, // Light Orange
+        {.r = 0xFF, .g = 0x7F, .b = 0}, // Orange
+        {.r = 0x7F, .g = 0x7F, .b = 0}, // Light Yellow
+        {.r = 0xFF, .g = 0xFF, .b = 0}, // Yellow
+        {.r = 0, .g = 0x7F, .b = 0}, // Light Green
+        {.r = 0, .g = 0xFF, .b = 0}, // Green
+        {.r = 0, .g = 0x7F, .b = 0x00}, // Light Cyan
+        {.r = 0, .g = 0xFF, .b = 0x00}, // Cyan
+        {.r = 0, .g = 0, .b = 0x7F}, // Light Blue
+        {.r = 0, .g = 0, .b = 0xFF}, // Blue
+        {.r = 0x7F, .g = 0, .b = 0x7F}, // Light Magenta
+        {.r = 0xFF, .g = 0, .b = 0xFF}, // Magenta
+        {.r = 0x7F, .g = 0x7F, .b = 0x7F}, // Light White
+        {.r = 0xFF, .g = 0xFF, .b = 0xFF}, // White
+    };
+
+    led_t out[8] = {0};
+    int offset = 0;
+
+    for (int i = 0; i < len; i++)
+    {
+        memcpy(&out[i * 2], &ledVals[(packet[i] & 0xF0) >> 4], sizeof(led_t));
+        memcpy(&out[i * 2 + 1], &ledVals[packet[i] & 0x0F], sizeof(led_t));
+        offset += snprintf(synthDebug + offset, 1024 - offset, "%02" PRIX8 " ", packet[i]);
+    }
+    setLeds(out, 8);
+}
+
+static void writeSysexBuffer(void)
+{
+    int offset = 0;
+    for (int i = 0; i < sysexBuflen; i++)
+    {
+        offset += snprintf(synthDebug + offset, 1024 - offset, "%02" PRIX8 " ", sysexBuffer[i]);
+    }
+}
 
 /**
  * @brief Attempt to convert a TinyUSB MIDI packet to a midiEvent_t
@@ -78,20 +123,26 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
 
     switch (header)
     {
+
         // No MIDI data
         case 0x0:
+        setLedsForPacket(NULL, 0);
             return false;
 
         // Statuses with two data bytes
         case 0x8: // Note OFF
         case 0x9: // Note ON
+        case 0xA: // AfterTouch
         case 0xB: // Control Change
         case 0xE: // Pitch bend
         {
+            sysexBuflen = 0;
+
             event->type         = MIDI_EVENT;
             event->midi.status  = cmd;
             event->midi.data[0] = packet[2];
             event->midi.data[1] = packet[3];
+            setLedsForPacket(packet, 4);
             return true;
         }
 
@@ -104,6 +155,7 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
             event->type         = MIDI_EVENT;
             event->midi.status  = cmd;
             event->midi.data[0] = packet[2];
+            setLedsForPacket(packet, 3);
             return true;
         }
 
@@ -183,6 +235,7 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
             {
                 ESP_LOGE("MIDI-USB", "SysEx buffer full! Cannot handle remaining sysex data");
             }
+            //setLedsForPacket(packet, 4);
             return true;
         }
 
@@ -190,6 +243,7 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
         {
             sysexBuflen = 0;
 
+            setLedsForPacket(packet, 1);
             // Idk?
             return false;
         }
@@ -199,15 +253,82 @@ static bool handlePacket(midiEvent_t* event, const uint8_t packet[4])
 bool usbMidiCallback(midiEvent_t* event)
 {
     uint8_t packet[4] = {0, 0, 0, 0};
-
     while (tud_ready() && tud_midi_available())
     {
+        
         if (tud_midi_packet_read(packet))
         {
             if (packet[0])
             {
                 return handlePacket(event, packet);
             }
+        }
+    }
+
+    return false;
+}
+
+bool usbMidiSend(midiEvent_t* event)
+{
+    uint8_t smallBuffer[3];
+    
+    if (!tud_ready())
+    {
+        return false;
+    }
+
+    switch (event->type)
+    {
+        case MIDI_EVENT:
+        {
+/*            switch (event->midi.status & 0xF0)
+            {
+                case 0x80: // Note OFF
+                case 0x90: // Note ON
+                case 0xA0: // AfterTouch
+                case 0xB0: // Control Change
+                case 0xE0: // Pitch bend
+                {
+                    // 2 Data Bytes
+                    
+                    smallBuffer[0] = event->midi.status;
+                    smallBuffer[1] = event->midi.data[0];
+                    smallBuffer[2] = event->midi.data[1];
+
+                    break;
+                }
+
+                case 0xC0: // Program select
+                case 0xD0: // Channel pressure
+                {
+                    smallBuffer[0] = event->midi.status;
+                    smallBuffer[1] = event->midi.data[0];
+                    // 1 Data Byte
+                    break;
+                }
+            }*/
+            uint32_t len = midiWriteEvent(smallBuffer, sizeof(smallBuffer), event);
+            return (len == tud_midi_stream_write(0, smallBuffer, len));
+        }
+
+        case SYSEX_EVENT:
+        {
+            smallBuffer[0] = 0xF0;
+            if (event->sysex.prefix)
+            {
+                smallBuffer[0] = event->sysex.prefix;
+            }
+            smallBuffer[1] = 0xF7;
+            int len = tud_midi_stream_write(0, smallBuffer, 1);
+            len += tud_midi_stream_write(0, event->sysex.data, event->sysex.length);
+            len += tud_midi_stream_write(0, &smallBuffer[1], 1);
+            return len == (event->sysex.length + 2);
+        }
+
+        case META_EVENT:
+        {
+            // These cannot be sent over USB!
+            return false;
         }
     }
 

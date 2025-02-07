@@ -60,6 +60,7 @@ typedef struct
 
 static int readVariableLength(const uint8_t* data, uint32_t length, uint32_t* out);
 static int writeVariableLength(uint8_t* out, int max, uint32_t length);
+static int getVariableQuantityLength(uint32_t quantity);
 static bool trackParseNext(midiFileReader_t* reader, midiTrackState_t* track);
 static bool parseMidiHeader(midiFile_t* file);
 static void readFirstEvents(midiFileReader_t* reader);
@@ -138,6 +139,26 @@ static int writeVariableLength(uint8_t* out, int max, uint32_t quantity)
     }
 
     return written;
+}
+
+static int getVariableQuantityLength(uint32_t quantity)
+{
+    if (quantity >= (1 << 21))
+    {
+        return 4;
+    }
+    else if (quantity >= (1 << 14))
+    {
+        return 3;
+    }
+    else if (quantity >= (1 << 7))
+    {
+        return 2;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 #define TRK_REMAIN() (track->track->length - (track->cur - track->track->data))
@@ -1099,6 +1120,56 @@ void globalMidiRestore(void* data)
     // Do not free any of the individual save state data, since it's now just the real data
     // Just free the container
     heap_caps_free(data);
+}
+
+int midiEventSize(const midiEvent_t* event)
+{
+    int written = 0;
+    switch (event->type)
+    {
+        case MIDI_EVENT:
+        {
+            switch (event->midi.status & 0xF0)
+            {
+                // Two-byte statuses
+                case 0x80: // Note OFF
+                case 0x90: // Note ON
+                case 0xA0: // AfterTouch
+                case 0xB0: // Control Change
+                case 0xE0: // Pitch bend
+                {
+                    return 3;
+                }
+
+                // One-byte statuses
+                case 0xC0: // Program Select
+                case 0xD0: // Channel Pressure
+                {
+                    return 2;
+                }
+
+                default:
+                    return 1;
+                    // No other valid status bytes
+                    break;
+            }
+            break;
+        }
+
+        case META_EVENT:
+        {
+            // 0xFF + Type + <data length, variable quantity> + <data length>
+            return 2 + getVariableQuantityLength(event->meta.length) + event->meta.length;
+        }
+
+        case SYSEX_EVENT:
+        {
+            // F0 + <data> + F7
+            return 2 + event->sysex.length;
+        }
+    }
+
+    return written;
 }
 
 int midiWriteEvent(uint8_t* out, int max, const midiEvent_t* event)

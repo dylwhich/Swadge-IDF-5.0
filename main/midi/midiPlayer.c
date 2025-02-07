@@ -1176,6 +1176,55 @@ static void handleSysexEvent(midiPlayer_t* player, const midiSysexEvent_t* sysex
         case MMFR_EDUCATIONAL_USE:
             break;
 
+        case MMFR_MAGFEST:
+        {
+            uint8_t type = *dataPtr++;
+            
+            if (dataPtr >= end)
+            {
+                // Err
+                return;
+            }
+
+            switch (type)
+            {
+                case 0x00:
+                {
+                    // Reserved;
+                    break;
+                }
+
+                case 0x01:
+                {
+                    // LEDs?
+                    uint8_t numLeds = *dataPtr++;
+
+                    if (numLeds > CONFIG_NUM_LEDS)
+                    {
+                        numLeds = CONFIG_NUM_LEDS;
+                    }
+
+                    led_t leds[numLeds];
+                    for (int i = 0; i < numLeds; i++)
+                    {
+                        if (dataPtr + 3 > end)
+                        {
+                            // Err
+                            return;
+                        }
+
+                        leds[i].r = (*dataPtr++) << 1;
+                        leds[i].g = (*dataPtr++) << 1;
+                        leds[i].b = (*dataPtr++) << 1;
+                    }
+
+                    setLeds(leds, numLeds);
+                    break;
+                }
+            }
+            break;
+        }
+
         case MMFR_UNIVERSAL_NON_REAL_TIME:
         case MMFR_UNIVERSAL_REAL_TIME:
         {

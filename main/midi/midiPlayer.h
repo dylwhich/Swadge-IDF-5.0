@@ -388,6 +388,7 @@ typedef enum
     MMFR_EDUCATIONAL_USE         = 0x807D,
     MMFR_UNIVERSAL_NON_REAL_TIME = 0x807E,
     MMFR_UNIVERSAL_REAL_TIME     = 0x807F,
+    MMFR_MAGFEST                 = 0x34C2,
 } midiManufacturerId_t;
 
 //==============================================================================
@@ -456,6 +457,8 @@ typedef int8_t (*percussionFunc_t)(percussionNote_t drum, uint32_t idx, bool* do
  * @param length The length of the text
  */
 typedef void (*midiTextCallback_t)(metaEventType_t type, const char* text, uint32_t length);
+
+typedef void (*midiSysexCallback_t)(midiSysexEvent_t* event);
 
 /**
  * @brief A function to return MIDI events in streaming mode

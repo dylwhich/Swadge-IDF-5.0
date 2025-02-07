@@ -361,6 +361,7 @@ static const textEntrySettings_t tes = {
     .maxLen         = 128,
     .startKMod      = TE_PROPER_NOUN,
 };
+char synthDebug[1024] = {0};
 
 static const char readyStr[] = "Ready!";
 
@@ -2817,6 +2818,13 @@ static void drawSynthMode(int64_t elapsedUs)
                      sd->lastPackets[ch][1], sd->lastPackets[ch][2], sd->lastPackets[ch][3]);
             packetMsg[sizeof(packetMsg) - 1] = '\0';
             drawText(&sd->font, col, packetMsg, TFT_WIDTH - textWidth(&sd->font, packetMsg) - 10, textY);
+
+            if (*synthDebug)
+            {
+                int16_t x = 15;
+                int16_t y = 15;
+                drawTextWordWrap(&sd->font, c500, synthDebug, &x, &y, TFT_WIDTH - 15, TFT_HEIGHT - 15);
+            }
         }
         else if (sd->viewMode & VM_TEXT)
         {
@@ -3196,7 +3204,7 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
 
     for (node_t* node = karInfo->lyrics.first; node != NULL; node = node->next)
     {
-        // Search for the 
+        // Search for the
         midiTextInfo_t* cur = (midiTextInfo_t*)node->val;
 
         if (curLyric == NULL && cur->timestamp >= now && cur->expiration < now)
@@ -3253,7 +3261,7 @@ static void drawKaraokeLyrics(uint32_t ticks, karaokeInfo_t* karInfo)
         {
             // Lyric is older than 2 bars
             nearLyric = curInfo->timestamp;
-            
+
             // skip without drawing
         }
         else if (curInfo->timestamp < now || curInfo->expiration < now)

@@ -1326,20 +1326,133 @@ static void handleSysexEvent(midiPlayer_t* player, const midiSysexEvent_t* sysex
                 {
                     // 0: UNUSED
                     case 0x0:
-                    // Sample Dump
+
+                    // Sample Dump Header
                     case 0x1:
+                    {
+                        /*
+                        F0 7E <device ID> 01 ss ss ee ff ff ff gg gg gg hh hh hh ii ii ii jj F7
+                        ss ss Sample number (LSB first)
+                        ee Sample format (# of significant bits from 8-28)
+                        ff ff ff Sample period (1/sample rate) in nanoseconds (LSB first)
+                        gg gg gg Sample length in words (LSB first)
+                        hh hh hh Sustain loop start point word number (LSB first)
+                        ii ii ii Sustain loop end point word number (LSB first)
+                        jj Loop type (00 = forward only, 01 = backward/forward, 7F = Loop off)
+                        */
+
+                        if (dataPtr + 16 >= end)
+                        {
+                            return;
+                        }
+
+                        // Index, I guess?
+                        uint16_t sampleNumber = *dataPtr++;
+                        sampleNumber |= ((*dataPtr++) << 7);
+
+                        // Number of significant bits from 8-28
+                        uint8_t format = *dataPtr++;
+
+                        // Inverse of sample rate in nanoseconds
+                        uint32_t samplePeriod = *dataPtr++;
+                        samplePeriod |= ((*dataPtr++) << 7);
+                        samplePeriod |= ((*dataPtr++) << 14);
+
+                        // Sample length in words (words are however many bytes it take to fit <format> bits)
+                        uint32_t sampleLength = *dataPtr++;
+                        sampleLength |= ((*dataPtr++) << 7);
+                        sampleLength |= ((*dataPtr++) << 14);
+
+                        // Word index
+                        uint32_t sustLoopStart = *dataPtr++;
+                        sustLoopStart |= ((*dataPtr++) << 7);
+                        sustLoopStart |= ((*dataPtr++) << 14);
+
+                        // Word index
+                        uint32_t sustLoopEnd = *dataPtr++;
+                        sustLoopEnd |= ((*dataPtr++) << 7);
+                        sustLoopEnd |= ((*dataPtr++) << 14);
+
+                        // 00: Forward only
+                        // 01: Backward/forward
+                        // 7F: Loop Off
+                        uint8_t loopType = *dataPtr++;
+
+                        uint32_t totalBytes = ((format + 6) / 7) * sampleLength;
+                        uint8_t* sampleData = malloc(totalBytes);
+                        if (sampleData)
+                        {
+                            // ACK
+
+                        }
+                        else
+                        {
+                            // NAK
+                        }
+                        break;
+                    }
+
                     // Sample Data Packet
                     case 0x2:
+                    {
+                        break;
+                    }
+
                     // Sample Dump Request
                     case 0x3:
+                    {
+                        break;
+                    }
+
                     // MIDI Time Code
                     case 0x4:
+                    {
+                        break;
+                    }
+
                     // Sample Dump Extensions
                     case 0x5:
+                    {
+                        break;
+                    }
+
                     // General Information
                     case 0x6:
+                    {
+                        if (dataPtr >= end)
+                        {
+                            return;
+                        }
+
+                        switch (*dataPtr++)
+                        {
+                            // Identity Request
+                            case 0x01:
+                            {
+                                
+                                break;
+                            }
+
+                            // Identity Request Response
+                            case 0x02:
+                            {
+                                
+                                break;
+                            }
+
+                            default:
+                                // IDK?
+                                break;
+                        }
+                        break;
+                    }
+
                     // File Dump
                     case 0x7:
+                    {
+                        break;
+                    }
+
                     // MIDI Tuning Standard
                     case 0x8:
                         break;
@@ -1390,16 +1503,38 @@ static void handleSysexEvent(midiPlayer_t* player, const midiSysexEvent_t* sysex
                     case 0xC:
                     // MIDI Capability Inquiry
                     case 0xD:
+                        break;
+                    
                     // End of File
                     case 0x7B:
+                    {
+                        break;
+                    }
+                    
                     // Wait
                     case 0x7C:
+                    {
+                        break;
+                    }
+
                     // Cancel
                     case 0x7D:
+                    {
+                        break;
+                    }
+
                     // NAK
                     case 0x7E:
+                    {
+                        break;
+                    }
+
                     // ACK
                     case 0x7F:
+                    {
+                        break;
+                    }
+
                     default:
                         break;
                 }

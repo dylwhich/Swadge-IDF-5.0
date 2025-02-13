@@ -18,5 +18,6 @@ typedef struct
 
 void loaderInit(loader_t* loader, size_t dataSize, loadFn_t loadFn, unloadFn_t unloadFn);
 void loaderDeinit(loader_t* loader);
+void loaderClear(loader_t* loader);
 const void* loaderGet(loader_t* loader, const char* key);
 void loaderReturn(loader_t* loader, const void* value);

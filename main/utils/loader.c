@@ -21,6 +21,12 @@ void loaderInit(loader_t* loader, size_t dataSize, loadFn_t loadFn, unloadFn_t u
 
 void loaderDeinit(loader_t* loader)
 {
+    loaderClear(loader);
+    hashDeinit(&loader->map);
+}
+
+void loaderClear(loader_t* loader)
+{
     hashIterator_t iter = {0};
     while (hashIterate(&loader->map, &iter))
     {
@@ -35,7 +41,6 @@ void loaderDeinit(loader_t* loader)
     }
 
     hashIterReset(&iter);
-    hashDeinit(&loader->map);
 }
 
 const void* loaderGet(loader_t* loader, const char* key)

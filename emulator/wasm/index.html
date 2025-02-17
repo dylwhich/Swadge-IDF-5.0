@@ -190,12 +190,13 @@
 
                                 // Here, Asyncify is a drop-in replacement for WebAssembly
                                 // it
-                                Asyncify.instantiateStreaming(fetch("../swadge_emulator.wasm"), imports).then(({instance, module}) => {
+                                Asyncify.instantiateStreaming(fetch("./swadge_emulator.wasm"), imports).then(({instance, module}) => {
                                     //stdlib.postInstantiate(instance);
                                     let argInfo = weblibc.postInstantiate(instance);
                                     pointers.postInstantiate(instance);
                                     cnfg.postInstantiate(instance);
-                                    instance.exports.main(0|0, 0|0).then(() => {
+                                    console.log("argInfo", argInfo);
+                                    instance.exports.main(argInfo.argc, argInfo.argv).then(() => {
                                         console.error("main done?");
                                     }).catch((err) => {
                                         console.error("err!", err);
